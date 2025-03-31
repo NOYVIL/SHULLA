@@ -13,10 +13,61 @@ let explosionRadius = 5; // רדיוס ההשפעה של הפיצוץ
 let bombCount = 10; // מספר הפצצות
 let showSettings = false;
 let settingsHeight = 160;
+let canvasWidth, canvasHeight;
+let isMobile = false;
 
 function setup() {
-  createCanvas(cols * cellSize, rows * cellSize + (showSettings ? settingsHeight : 0));
+  // בדיקת גודל המסך ועדכון משתנים בהתאם
+  checkScreenSize();
+  
+  // יצירת קנבס רספונסיבי
+  let canvas = createCanvas(canvasWidth, canvasHeight);
+  canvas.parent('sketch-container'); // במקרה שמשתמשים ב-div ייעודי
+  
   setupGrid();
+  setupBombs();
+  
+  // הוספת אירועי מסך מגע
+  canvas.touchStarted(handleTouch);
+  
+  // האזנה לשינויי גודל החלון
+  window.addEventListener('resize', windowResized);
+}
+
+function checkScreenSize() {
+  // בדיקה האם המכשיר הוא מובייל
+  isMobile = window.innerWidth < 768;
+  
+  // התאמת המימדים לגודל החלון
+  let maxWidth = min(windowWidth * 0.95, 800);
+  let maxHeight = min(windowHeight * 0.8, 800);
+  
+  if (isMobile) {
+    // הגדרות למובייל - פחות תאים וגודל תא מותאם
+    cols = 12;
+    rows = 12;
+    settingsHeight = 180; // יותר שטח להגדרות במובייל
+  } else {
+    // הגדרות למחשב
+    cols = 20;
+    rows = 20;
+    settingsHeight = 160;
+  }
+  
+  // חישוב גודל התא האופטימלי
+  let cellW = maxWidth / cols;
+  let cellH = (maxHeight - (showSettings ? settingsHeight : 0)) / rows;
+  cellSize = min(cellW, cellH);
+  
+  // עדכון מימדי הקנבס
+  canvasWidth = cellSize * cols;
+  canvasHeight = cellSize * rows + (showSettings ? settingsHeight : 0);
+}
+
+function windowResized() {
+  checkScreenSize();
+  resizeCanvas(canvasWidth, canvasHeight);
+  setupGrid(); // אופציונלי: לשמור על הציור הקיים או לאתחל מחדש
   setupBombs();
 }
 
@@ -34,7 +85,7 @@ function setupGrid() {
 function setupBombs() {
   // הוספת פצצות בצורה רנדומלית
   bombLocations = [];
-  let remainingBombs = bombCount;
+  let remainingBombs = min(bombCount, cols * rows / 4); // הגבלת מספר הפצצות
   while (remainingBombs > 0) {
     let x = floor(random(cols));
     let y = floor(random(rows));
@@ -71,7 +122,7 @@ function draw() {
       let size = map(explosionTimer, 0, maxExplosionTime, cellSize, maxSize);
       
       // גרדיאנט לפיצוץ
-      for (let r = size; r > 0; r -= 20) {
+      for (let r = size; r > 0; r -= cellSize/2) {
         let alphaGradient = alpha * (r / size);
         fill(255, 165, 0, alphaGradient); // צבע כתום עם שקיפות
         noStroke();
@@ -99,18 +150,42 @@ function draw() {
   
   // ציור כפתור ההגדרות
   drawSettingsButton();
+  
+  // ציור מידע על הצבע הנוכחי
+  drawCurrentColorInfo();
+}
+
+function drawCurrentColorInfo() {
+  // ציור אינדיקטור לצבע הנוכחי
+  let indicatorSize = min(cellSize * 0.8, 30);
+  fill(currentColor);
+  stroke(0);
+  rect(10, 10, indicatorSize, indicatorSize);
+  
+  // טקסט מידע
+  fill(0);
+  noStroke();
+  textSize(min(cellSize * 0.6, 14));
+  text("צבע נוכחי", 10 + indicatorSize + 5, 10 + indicatorSize/2 + 5);
 }
 
 function drawSettingsButton() {
   // ציור כפתור הגדרות
+  let buttonSize = min(cellSize * 1.5, 40);
   fill(150);
-  rect(width - 40, 10, 30, 30, 5);
+  rect(width - buttonSize - 10, 10, buttonSize, buttonSize, 5);
   fill(255);
-  text("⚙️", width - 33, 30);
+  textSize(buttonSize * 0.6);
+  text("⚙️", width - buttonSize + 5, buttonSize - 5);
 }
 
 function drawSettings() {
   let settingsY = rows * cellSize;
+  let buttonWidth = isMobile ? canvasWidth/2 - 20 : 100;
+  let inputWidth = isMobile ? 40 : 50;
+  let margin = isMobile ? 5 : 10;
+  let textSize = isMobile ? 10 : 12;
+  let buttonSpace = isMobile ? 5 : 20;
   
   // רקע הגדרות
   fill(240);
@@ -118,81 +193,111 @@ function drawSettings() {
   
   // כותרת
   fill(0);
-  textSize(18);
-  text("הגדרות", 10, settingsY + 25);
-  textSize(12);
+  textSize(isMobile ? 14 : 18);
+  text("הגדרות", 10, settingsY + 20);
+  textSize(textSize);
+  
+  // מפריד האזורים לשתי עמודות במצב מובייל
+  let col1X = margin;
+  let col2X = isMobile ? width/2 + margin : 180;
   
   // הגדרת צבעים
-  text("צבע 1:", 10, settingsY + 50);
+  fill(0);
+  text("צבע 1:", col1X, settingsY + 40);
   fill(color1);
-  rect(60, settingsY + 40, 20, 20);
+  rect(col1X + 50, settingsY + 30, 20, 20);
   
-  text("צבע 2:", 10, settingsY + 80);
+  fill(0);
+  text("צבע 2:", col1X, settingsY + 70);
   fill(color2);
-  rect(60, settingsY + 70, 20, 20);
+  rect(col1X + 50, settingsY + 60, 20, 20);
   
   // הגדרת גודל רשת
   fill(0);
-  text("גודל רשת:", 120, settingsY + 50);
+  text("גודל רשת:", col2X, settingsY + 40);
   fill(255);
-  rect(180, settingsY + 40, 50, 20);
+  rect(col2X + 60, settingsY + 30, inputWidth, 20);
   fill(0);
-  text(cols + "x" + rows, 190, settingsY + 55);
+  text(cols + "x" + rows, col2X + 65, settingsY + 45);
   
   // הגדרת גודל תא
   fill(0);
-  text("גודל פיקסל:", 120, settingsY + 80);
+  text("גודל פיקסל:", col2X, settingsY + 70);
   fill(255);
-  rect(180, settingsY + 70, 50, 20);
+  rect(col2X + 60, settingsY + 60, inputWidth, 20);
   fill(0);
-  text(cellSize, 200, settingsY + 85);
+  text(round(cellSize), col2X + 65, settingsY + 75);
+  
+  // הגדרת מספר פצצות ורדיוס - עמודה שלישית או שורה חדשה במובייל
+  let col3X = isMobile ? col1X : col2X + 150;
+  let explosionY = isMobile ? settingsY + 100 : settingsY + 40;
+  let bombsY = isMobile ? settingsY + 100 : settingsY + 70;
   
   // הגדרת מספר פצצות
   fill(0);
-  text("מספר פצצות:", 260, settingsY + 50);
+  text("מס' פצצות:", col3X, bombsY);
   fill(255);
-  rect(340, settingsY + 40, 30, 20);
+  rect(col3X + 70, bombsY - 10, 30, 20);
   fill(0);
-  text(bombCount, 350, settingsY + 55);
+  text(bombCount, col3X + 80, bombsY + 5);
   
   // הגדרת רדיוס פיצוץ
-  fill(0);
-  text("רדיוס פיצוץ:", 260, settingsY + 80);
-  fill(255);
-  rect(340, settingsY + 70, 30, 20);
-  fill(0);
-  text(explosionRadius, 350, settingsY + 85);
+  if (isMobile) {
+    col3X = col2X;
+  }
   
-  // כפתור החלת שינויים
-  fill(100, 200, 100);
-  rect(width - 120, settingsY + 120, 100, 30, 5);
+  fill(0);
+  text("רדיוס פיצוץ:", col3X, explosionY);
   fill(255);
-  text("החל שינויים", width - 105, settingsY + 140);
+  rect(col3X + 70, explosionY - 10, 30, 20);
+  fill(0);
+  text(explosionRadius, col3X + 80, explosionY + 5);
+  
+  // כפתורים בתחתית
+  let buttonsY = settingsY + (isMobile ? 130 : 110);
   
   // כפתור איפוס
   fill(200, 100, 100);
-  rect(width - 240, settingsY + 120, 100, 30, 5);
+  rect(margin, buttonsY, buttonWidth, 30, 5);
   fill(255);
-  text("איפוס", width - 210, settingsY + 140);
+  text("איפוס", margin + buttonWidth/2 - 20, buttonsY + 20);
+  
+  // כפתור החלת שינויים
+  fill(100, 200, 100);
+  rect(width - margin - buttonWidth, buttonsY, buttonWidth, 30, 5);
+  fill(255);
+  text("החל שינויים", width - margin - buttonWidth/2 - 30, buttonsY + 20);
+}
+
+function handleTouch() {
+  // טיפול באירועי מגע - להפעלה על מכשירים ניידים
+  return handleInput(touchX, touchY);
 }
 
 function mousePressed() {
+  // להפעלה על מחשב
+  return handleInput(mouseX, mouseY);
+}
+
+function handleInput(inputX, inputY) {
   // בדיקה אם לחצו על כפתור ההגדרות
-  if (mouseX > width - 40 && mouseX < width - 10 && mouseY > 10 && mouseY < 40) {
+  let buttonSize = min(cellSize * 1.5, 40);
+  if (inputX > width - buttonSize - 10 && inputX < width - 10 && inputY > 10 && inputY < 10 + buttonSize) {
     showSettings = !showSettings;
-    resizeCanvas(cols * cellSize, rows * cellSize + (showSettings ? settingsHeight : 0));
-    return;
+    checkScreenSize();
+    resizeCanvas(canvasWidth, canvasHeight);
+    return false; // מניעת אירועי לחיצה אחרים בדפדפן
   }
 
   // בדיקה אם הלחיצה הייתה באזור ההגדרות כשהוא פתוח
-  if (showSettings && mouseY > rows * cellSize) {
-    handleSettingsClick();
-    return;
+  if (showSettings && inputY > rows * cellSize) {
+    handleSettingsClick(inputX, inputY);
+    return false;
   }
   
   // חישוב המיקום בגריד
-  let x = floor(mouseX / cellSize);
-  let y = floor(mouseY / cellSize);
+  let x = floor(inputX / cellSize);
+  let y = floor(inputY / cellSize);
   
   // בדיקה שהמיקום בתוך הגריד
   if (x >= 0 && x < cols && y >= 0 && y < rows) {
@@ -206,17 +311,19 @@ function mousePressed() {
       explosionTimer = 0;
       
       // צביעה רנדומלית של מספר פיקסלים סביב הפצצה - הגדלת האזור המושפע
-      let pixelsToColor = floor(random(explosionRadius * 5, explosionRadius * 10));
+      let pixelsToColor = floor(random(explosionRadius * 3, explosionRadius * 8));
+      let explosionRange = max(2, explosionRadius);
+      
       for (let i = 0; i < pixelsToColor; i++) {
-        let offsetX = floor(random(-explosionRadius, explosionRadius + 1));
-        let offsetY = floor(random(-explosionRadius, explosionRadius + 1));
+        let offsetX = floor(random(-explosionRange, explosionRange + 1));
+        let offsetY = floor(random(-explosionRange, explosionRange + 1));
         let newX = x + offsetX;
         let newY = y + offsetY;
         
         if (newX >= 0 && newX < cols && newY >= 0 && newY < rows) {
           // סיכוי גבוה יותר לצבוע פיקסלים קרובים
           let distance = sqrt(offsetX * offsetX + offsetY * offsetY);
-          if (random() > distance / explosionRadius) {
+          if (random() > distance / explosionRange) {
             grid[newX][newY] = random() > 0.5 ? color1 : color2;
           }
         }
@@ -229,91 +336,135 @@ function mousePressed() {
       grid[x][y] = grid[x][y] === color1 ? color2 : color1;
     }
   }
+  
+  return false; // מניעת אירועי לחיצה אחרים בדפדפן
 }
 
-function handleSettingsClick() {
+function handleSettingsClick(inputX, inputY) {
   let settingsY = rows * cellSize;
+  let margin = isMobile ? 5 : 10;
+  let col1X = margin;
+  let col2X = isMobile ? width/2 + margin : 180;
+  let col3X = isMobile ? col1X : col2X + 150;
+  let buttonWidth = isMobile ? canvasWidth/2 - 20 : 100;
+  let inputWidth = isMobile ? 40 : 50;
+  let explosionY = isMobile ? settingsY + 100 : settingsY + 40;
+  let bombsY = isMobile ? settingsY + 100 : settingsY + 70;
   
   // בדיקת לחיצה על צבע 1
-  if (mouseX > 60 && mouseX < 80 && mouseY > settingsY + 40 && mouseY < settingsY + 60) {
+  if (inputX > col1X + 50 && inputX < col1X + 70 && inputY > settingsY + 30 && inputY < settingsY + 50) {
     let newColor = prompt("הכנס צבע חדש (קוד HEX, לדוגמה #00FF00):", color1);
     if (newColor && isValidHexColor(newColor)) {
       color1 = newColor;
     }
+    return;
   }
   
   // בדיקת לחיצה על צבע 2
-  if (mouseX > 60 && mouseX < 80 && mouseY > settingsY + 70 && mouseY < settingsY + 90) {
+  if (inputX > col1X + 50 && inputX < col1X + 70 && inputY > settingsY + 60 && inputY < settingsY + 80) {
     let newColor = prompt("הכנס צבע חדש (קוד HEX, לדוגמה #0000FF):", color2);
     if (newColor && isValidHexColor(newColor)) {
       color2 = newColor;
     }
+    return;
   }
   
   // בדיקת לחיצה על גודל רשת
-  if (mouseX > 180 && mouseX < 230 && mouseY > settingsY + 40 && mouseY < settingsY + 60) {
+  if (inputX > col2X + 60 && inputX < col2X + 60 + inputWidth && inputY > settingsY + 30 && inputY < settingsY + 50) {
     let newSize = prompt("הכנס גודל רשת חדש (לדוגמה 30):", cols);
-    if (newSize && !isNaN(newSize) && newSize > 5 && newSize <= 50) {
-      cols = parseInt(newSize);
-      rows = parseInt(newSize);
-      resizeCanvas(cols * cellSize, rows * cellSize + (showSettings ? settingsHeight : 0));
-      setupGrid();
-      setupBombs();
+    if (newSize && !isNaN(newSize)) {
+      let size = parseInt(newSize);
+      if (size >= 5 && size <= (isMobile ? 20 : 50)) {
+        cols = size;
+        rows = size;
+        checkScreenSize();
+        resizeCanvas(canvasWidth, canvasHeight);
+        setupGrid();
+        setupBombs();
+      } else {
+        alert("גודל רשת חייב להיות בין 5 ל-" + (isMobile ? "20" : "50"));
+      }
     }
+    return;
   }
   
   // בדיקת לחיצה על גודל פיקסל
-  if (mouseX > 180 && mouseX < 230 && mouseY > settingsY + 70 && mouseY < settingsY + 90) {
-    let newSize = prompt("הכנס גודל פיקסל חדש (לדוגמה 15):", cellSize);
-    if (newSize && !isNaN(newSize) && newSize > 5 && newSize <= 40) {
-      cellSize = parseInt(newSize);
-      resizeCanvas(cols * cellSize, rows * cellSize + (showSettings ? settingsHeight : 0));
+  if (inputX > col2X + 60 && inputX < col2X + 60 + inputWidth && inputY > settingsY + 60 && inputY < settingsY + 80) {
+    let newSize = prompt("הכנס גודל פיקסל חדש (לדוגמה 15):", Math.round(cellSize));
+    if (newSize && !isNaN(newSize)) {
+      let size = parseInt(newSize);
+      if (size >= 5 && size <= (isMobile ? 30 : 50)) {
+        cellSize = size;
+        checkScreenSize();
+        resizeCanvas(canvasWidth, canvasHeight);
+      } else {
+        alert("גודל פיקסל חייב להיות בין 5 ל-" + (isMobile ? "30" : "50"));
+      }
     }
+    return;
   }
   
   // בדיקת לחיצה על מספר פצצות
-  if (mouseX > 340 && mouseX < 370 && mouseY > settingsY + 40 && mouseY < settingsY + 60) {
-    let newCount = prompt("הכנס מספר פצצות חדש:", bombCount);
-    if (newCount && !isNaN(newCount) && newCount >= 0 && newCount <= cols * rows / 3) {
-      bombCount = parseInt(newCount);
-      setupBombs();
+  if (inputX > col3X + 70 && inputX < col3X + 100 && inputY > bombsY - 10 && inputY < bombsY + 10) {
+    let maxBombs = Math.floor(cols * rows / 4);
+    let newCount = prompt("הכנס מספר פצצות חדש (מקסימום " + maxBombs + "):", bombCount);
+    if (newCount && !isNaN(newCount)) {
+      let count = parseInt(newCount);
+      if (count >= 0 && count <= maxBombs) {
+        bombCount = count;
+        setupBombs();
+      } else {
+        alert("מספר הפצצות חייב להיות בין 0 ל-" + maxBombs);
+      }
     }
+    return;
   }
   
   // בדיקת לחיצה על רדיוס פיצוץ
-  if (mouseX > 340 && mouseX < 370 && mouseY > settingsY + 70 && mouseY < settingsY + 90) {
+  if (inputX > (isMobile ? col3X : col2X) + 70 && inputX < (isMobile ? col3X : col2X) + 100 && 
+      inputY > explosionY - 10 && inputY < explosionY + 10) {
     let newRadius = prompt("הכנס רדיוס פיצוץ חדש (1-10):", explosionRadius);
-    if (newRadius && !isNaN(newRadius) && newRadius >= 1 && newRadius <= 10) {
-      explosionRadius = parseInt(newRadius);
+    if (newRadius && !isNaN(newRadius)) {
+      let radius = parseInt(newRadius);
+      if (radius >= 1 && radius <= 10) {
+        explosionRadius = radius;
+      } else {
+        alert("רדיוס פיצוץ חייב להיות בין 1 ל-10");
+      }
     }
+    return;
   }
   
   // בדיקת לחיצה על כפתור החלת שינויים
-  if (mouseX > width - 120 && mouseX < width - 20 && mouseY > settingsY + 120 && mouseY < settingsY + 150) {
-    // השינויים כבר מוחלים בזמן אמת
+  let buttonsY = settingsY + (isMobile ? 130 : 110);
+  if (inputX > width - margin - buttonWidth && inputX < width - margin && 
+      inputY > buttonsY && inputY < buttonsY + 30) {
     showSettings = false;
-    resizeCanvas(cols * cellSize, rows * cellSize + (showSettings ? settingsHeight : 0));
+    checkScreenSize();
+    resizeCanvas(canvasWidth, canvasHeight);
+    return;
   }
   
   // בדיקת לחיצה על כפתור איפוס
-  if (mouseX > width - 240 && mouseX < width - 140 && mouseY > settingsY + 120 && mouseY < settingsY + 150) {
+  if (inputX > margin && inputX < margin + buttonWidth && 
+      inputY > buttonsY && inputY < buttonsY + 30) {
     resetSketch();
+    return;
   }
 }
 
 function resetSketch() {
   // איפוס כל ההגדרות לברירת המחדל
-  rows = 20;
-  cols = 20;
-  cellSize = 20;
   color1 = '#000000';
   color2 = '#FF0000';
   currentColor = color1;
-  bombCount = 10;
+  bombCount = isMobile ? 5 : 10;
   explosionRadius = 5;
+  
+  checkScreenSize();
   setupGrid();
   setupBombs();
-  resizeCanvas(cols * cellSize, rows * cellSize + (showSettings ? settingsHeight : 0));
+  resizeCanvas(canvasWidth, canvasHeight);
 }
 
 function keyPressed() {
@@ -330,10 +481,22 @@ function keyPressed() {
     currentColor = color2;
   } else if (key === 's' || key === 'S') {
     showSettings = !showSettings;
-    resizeCanvas(cols * cellSize, rows * cellSize + (showSettings ? settingsHeight : 0));
+    checkScreenSize();
+    resizeCanvas(canvasWidth, canvasHeight);
   }
 }
 
 function isValidHexColor(color) {
   return /^#[0-9A-F]{6}$/i.test(color);
+}
+
+// טיפול במגע למכשירים ניידים
+function touchStarted() {
+  // הפנייה לפונקציית הטיפול הכללית
+  return handleInput(touchX, touchY);
+}
+
+// מניעת התנהגויות ברירת מחדל של הדפדפן
+function touchMoved() {
+  return false;
 }
